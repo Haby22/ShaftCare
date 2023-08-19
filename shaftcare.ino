@@ -6,29 +6,30 @@
 #include "DHT.h"
 #include <ESP8266WiFi.h>
 
-// const char* ssid = "AEIG_EVENT"; // Nom du réseau Wi-Fi
-// const char* password = "3yEmTa3iJ"; // Mot de passe du réseau Wi-Fi
-
-// const char* serverAddress = "10.50.1.92"; // Adresse IP à joindre
-const char *ssid = "ASUSOW";       // Nom du réseau Wi-Fi
-const char *password = "22052000"; // Mot de passe du réseau Wi-Fi
-
+// wifi access id and mdp , server host and port
+// const char* ssid = "ASUSOW"; // Nom du réseau Wi-Fi
+// const char* password = "22052000"; // Mot de passe du réseau Wi-Fi
+const char *ssid = "ShaftCare";                             // Nom du réseau Wi-Fi
+const char *password = "ShaftCare2023";                     // Mot de passe du réseau Wi-Fi
 const char *serverAddress = "agireau.biristechnologie.com"; // Adresse IP à joindre
+const int serverPort = 3000;                                // Port de communication
 
-const int serverPort = 3000; // Port de communication
-int sensorValueMin = 100;    // Remplacez par la valeur minimale lue en sol humide
-int sensorValueMax = 1023;   // Remplacez par la valeur maximale lue en sol sec
-WiFiClient client;           // Client Wi-Fi pour la communication
-#define DHTPIN 19
+// Soil moisiture default value
+int sensorValueMin = 100;  // Remplacez par la valeur minimale lue en sol humide
+int sensorValueMax = 1023; // Remplacez par la valeur maximale lue en sol sec
+
+// wifi init client
+WiFiClient client; // Client Wi-Fi pour la communication
+#define DHTPIN 12
 #define DHTTYPE DHT11
 // DHTTYPE = DHT11, mais il existe aussi le DHT22 et 21
 
-#define TRIG_PIN 5  // ESP32 pin GIOP23 connected to Ultrasonic Sensor's TRIG pin
-#define ECHO_PIN 18 // ESP32 pin GIOP22 connected to Ultrasonic Sensor's ECHO pin
+#define TRIG_PIN 5 // ESP32 pin GIOP23 connected to Ultrasonic Sensor's TRIG pin
+#define ECHO_PIN 4 // ESP32 pin GIOP22 connected to Ultrasonic Sensor's ECHO pin
 float duration_us, distance_cm;
 
 DHT dht(DHTPIN, DHTTYPE); // constructeur pour déclarer notre capteur
-
+String macAddress;
 int _moisture, sensor_analog;
 const int sensor_pin = A0; /* Soil moisture sensor O/P pin */
 
@@ -54,66 +55,74 @@ void setup(void)
 
 void loop(void)
 {
-    //
-    // generate 10-microsecond pulse to TRIG pin
+    String macAddress = getMacAddress();
+    int SoilMoisture = getSoilMoisture();
+    float size = getUltrasonData();
+    float ambiantHumidity = getdhtHumidity();
+    float ambiantTemperature = getdhtTemp();
+    Serial.println(macAddress);
+    Serial.println(SoilMoisture);
+    Serial.println(size);
+    Serial.println(ambiantHumidity);
+    Serial.println(ambiantTemperature);
+    sendShaftCareData(macAddress, SoilMoisture, size, ambiantHumidity, ambiantTemperature);
+}
+
+String getMacAddress()
+{
+    // Get the MAC address and store it in the global variable
+    String macAddress = WiFi.macAddress();
+
+    // Print the MAC address for verification
+    return macAddress;
+}
+int getSoilMoisture()
+{
+    int soilMoistureValue = analogRead(sensor_pin);
+    // Convertir la valeur brute en pourcentage d'humidité
+    int moisturePercentage = map(soilMoistureValue, sensorValueMin, sensorValueMax, 100, 0);
+    _moisture = constrain(moisturePercentage, 0, 100); // Assurer que la valeur reste entre 0 et 100
+    return _moisture;
+    delay(1000);
+}
+float getUltrasonData()
+{
     digitalWrite(TRIG_PIN, HIGH);
     delayMicroseconds(10);
     digitalWrite(TRIG_PIN, LOW);
-
     // measure duration of pulse from ECHO pin
     duration_us = pulseIn(ECHO_PIN, HIGH);
-
     // calculate the distance
     distance_cm = 0.017 * duration_us;
 
     // print the value to Serial Monitor
-    Serial.print("distance: ");
-    Serial.print(distance_cm);
-    Serial.println(" cm");
-
     delay(500);
-    //
-    int soilMoistureValue = analogRead(sensor_pin);
-
-    // Convertir la valeur brute en pourcentage d'humidité
-    int moisturePercentage = map(soilMoistureValue, sensorValueMin, sensorValueMax, 100, 0);
-    _moisture = constrain(moisturePercentage, 0, 100); // Assurer que la valeur reste entre 0 et 100
-    Serial.println("_moisture");
-    Serial.println(_moisture);
-    // sensor_analog = analogRead(sensor_pin);
-    // _moisture = ( 100 - ( (sensor_analog/4095.00) * 100 ) );
-    // Serial.print("Moisture = ");
-    // Serial.print(_moisture);  /* Print Temperature on the serial window */
-    // Serial.println("%");
-    //  Serial.print("value");
-    //  Serial.println(sensor_analog);
-    Serial.print("MAC address: ");
-    Serial.println(WiFi.macAddress());
-    delay(1000); /* Wait for 1000mS */
-
-    // Le DHT11 renvoie au maximum une mesure toute les 1s
-    float h = dht.readHumidity();
-    // Lis le taux d'humidite en %
-    float t = dht.readTemperature();
-    // Lis la température en degré celsius
-    float f = dht.readTemperature(true);
-    // Avec (true), renvoi la température en fahrenheit
-
-    if (isnan(h) || isnan(t) || isnan(f))
+    return distance_cm;
+}
+float getdhtHumidity()
+{
+    float ambianthumidity = dht.readHumidity();
+    if (isnan(ambianthumidity))
     {
         Serial.println("Echec reception");
-        return;
+        return 0.0;
         // Renvoie une erreur si l'ESP32 ne reçoit aucune mesure
     }
-
-    Serial.print("Humidite: ");
-    Serial.print(h);
-    Serial.print("%  Temperature: ");
-    Serial.print(t);
-    Serial.print("°C, ");
-    Serial.print(f);
-    Serial.println("°F");
-    // Transmet les mesures reçues dans le moniteur série
+    return ambianthumidity;
+}
+float getdhtTemp()
+{
+    float ambiantTemp = dht.readTemperature();
+    if (isnan(ambiantTemp))
+    {
+        Serial.println("Echec reception");
+        return 0.0;
+        // Renvoie une erreur si l'ESP32 ne reçoit aucune mesure
+    }
+    return ambiantTemp;
+}
+void sendShaftCareData(String macAddress, float SoilMoisture, int size, float ambiantHumidity, float ambiantTemperature)
+{
     if (!client.connected())
     {
         if (client.connect(serverAddress, serverPort))
@@ -121,9 +130,8 @@ void loop(void)
             Serial.println("Connecté au serveur !");
 
             // Envoyer des données au serveur
-            String url = "/api/captor-data/?ambiantTemp=" + String(t) + "&SizePlant=" + String(distance_cm) + "&soilHumidity=" + String(_moisture) + "&captorId=64ac5f8bd543447932b74631";
+            String url = "/api/captor-data/?ambiantTemperature=" + String(ambiantTemperature) + "&SizePlant=" + String(size) + "&SoilMoisture=" + String(SoilMoisture) + "&macAddress=" + macAddress + "&ambiantHumidity=" + String(ambiantHumidity);
             client.print("POST " + url + " HTTP/1.1\r\n");
-            //  client.print("PUT /api/feed HTTP/1.1\r\n");
             client.println("Host: " + String(serverAddress));
             client.println("Connection: close");
             client.println();
