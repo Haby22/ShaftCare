@@ -4,20 +4,21 @@
 */
 
 #include "DHT.h"
-#include <WiFi.h>
+#include <ESP8266WiFi.h>
 
 // const char* ssid = "AEIG_EVENT"; // Nom du réseau Wi-Fi
 // const char* password = "3yEmTa3iJ"; // Mot de passe du réseau Wi-Fi
 
 // const char* serverAddress = "10.50.1.92"; // Adresse IP à joindre
-const char *ssid = "agirEau";     // Nom du réseau Wi-Fi
-const char *password = "agirEau"; // Mot de passe du réseau Wi-Fi
+const char *ssid = "ASUSOW";       // Nom du réseau Wi-Fi
+const char *password = "22052000"; // Mot de passe du réseau Wi-Fi
 
 const char *serverAddress = "agireau.biristechnologie.com"; // Adresse IP à joindre
 
 const int serverPort = 3000; // Port de communication
-
-WiFiClient client; // Client Wi-Fi pour la communication
+int sensorValueMin = 100;    // Remplacez par la valeur minimale lue en sol humide
+int sensorValueMax = 1023;   // Remplacez par la valeur maximale lue en sol sec
+WiFiClient client;           // Client Wi-Fi pour la communication
 #define DHTPIN 19
 #define DHTTYPE DHT11
 // DHTTYPE = DHT11, mais il existe aussi le DHT22 et 21
@@ -72,12 +73,22 @@ void loop(void)
 
     delay(500);
     //
+    int soilMoistureValue = analogRead(sensor_pin);
 
-    sensor_analog = analogRead(sensor_pin);
-    _moisture = (100 - ((sensor_analog / 4095.00) * 100));
-    Serial.print("Moisture = ");
-    Serial.print(_moisture); /* Print Temperature on the serial window */
-    Serial.println("%");
+    // Convertir la valeur brute en pourcentage d'humidité
+    int moisturePercentage = map(soilMoistureValue, sensorValueMin, sensorValueMax, 100, 0);
+    _moisture = constrain(moisturePercentage, 0, 100); // Assurer que la valeur reste entre 0 et 100
+    Serial.println("_moisture");
+    Serial.println(_moisture);
+    // sensor_analog = analogRead(sensor_pin);
+    // _moisture = ( 100 - ( (sensor_analog/4095.00) * 100 ) );
+    // Serial.print("Moisture = ");
+    // Serial.print(_moisture);  /* Print Temperature on the serial window */
+    // Serial.println("%");
+    //  Serial.print("value");
+    //  Serial.println(sensor_analog);
+    Serial.print("MAC address: ");
+    Serial.println(WiFi.macAddress());
     delay(1000); /* Wait for 1000mS */
 
     // Le DHT11 renvoie au maximum une mesure toute les 1s
